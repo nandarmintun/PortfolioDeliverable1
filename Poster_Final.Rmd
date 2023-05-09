@@ -1,0 +1,161 @@
+---
+main_topsize: 0.2 #percent coverage of the poster
+main_bottomsize: 0.1
+#ESSENTIALS
+title: '***What is the relationship between COVID-19 vaccinations, population density, and new cases?***'
+author:
+  - name: '**Nandar Min Tun**'
+    affil: 1
+    main: true
+    email: nandar.mt@gmail.com
+
+affiliation:
+  - num: 1
+    address: School of International Service, American University
+main_findings:
+  - "An empirical test on whether vaccination rates and population density are associated with new COVID-19 cases, and to what extent."
+
+
+primary_colour: "#0063B2FF"
+secondary_colour: "#9CC3D5FF"
+accent_colour: "#cc0000"
+output: 
+  posterdown::posterdown_betterport:
+    self_contained: false
+    pandoc_args: --mathjax
+    number_sections: false
+
+
+link-citations: true
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      tidy = FALSE,
+                      message = FALSE,
+                      fig.align = 'center',
+                      out.width = "100%")
+options(knitr.table.format = "html") 
+
+library(tidyverse)
+library(kableExtra)
+library(patchwork)
+library(dplyr)
+library(stargazer)
+library(lme4)
+library(Matrix)
+```
+
+
+```{r load covid, include=FALSE}
+   load("covidfinal.RData")
+
+```
+
+# Introduction
+
+The COVID-19 pandemic has had a profound impact on the world in the last few years, leading to numerous deaths and causing significant disruptions to societies and economies. Governments, public health organizations, and individuals have been working tirelessly to curb the spread of the virus and minimize its impact.
+
+One critical tool in this effort has been the development and distribution of COVID-19 vaccines. As more people receive vaccines, it is reasonable to expect that the number of new COVID-19 cases will decrease. However, the effectiveness of vaccines may be influenced by other factors, such as population density.
+
+# Research Question
+
+In this context, the main question of this analysis is:
+
+What is the relationship between COVID-19 vaccinations, population density, and new cases?
+
+Specifically, we will explore whether vaccination rates and population density are associated with new COVID-19 cases, and to what extent.
+
+
+# Importance and Expectations
+
+Understanding the relationship between vaccinations, population density, and new cases is of critical importance for policymakers, public health organizations, and individuals. This information can help guide decisions around vaccination distribution and other public health interventions, particularly in areas with high population density. It can also inform individual decisions around COVID-19 prevention and help promote a safer and healthier society overall.
+
+This project expects to find that higher vaccination rates and lower population density are associated with lower rates of new COVID-19 cases. We also anticipate that the relationship between vaccination rates and new cases may be moderated by population density, such that the negative association between vaccinations and new cases may be stronger in areas with lower population density.
+
+# Data
+
+The data is the COVID-19 data compiled by Our World in Data, which is a project of the Global Change Data Lab, a non-profit organization based at the University of Oxford.
+
+The data is available in CSV format and includes a wide range of information on COVID-19, including the number of cases, deaths, tests, and vaccinations by country and date. The data is updated regularly, and the latest version was published in 2022. It is important to note that the data is subject to limitations, such as variations in testing and reporting practices across different countries.
+
+
+```{r myprettycode1, echo=FALSE, fig.cap='Summary of Key Variables'}
+
+covid %>% 
+  select(total_cases, new_cases, total_deaths, new_deaths, total_vaccinations, people_fully_vaccinated, population_density) %>% 
+  summary() %>% 
+  kable() %>% 
+  kable_styling(font_size =50) %>% 
+  scroll_box(height = "400px")
+```
+
+
+```{r myprettycode2, echo=FALSE, fig.cap='Graph of COVID-19 cases by date', fig.height=6, out.width="80%"}
+
+
+covid %>% 
+  filter(location == "World") %>% 
+  mutate(date = as.Date(date)) %>% 
+  ggplot(aes(x = date, y = new_cases)) +
+  geom_line(color = "blue") +
+  labs(title = "New COVID-19 Cases by Date (World)",
+       x = "Date",
+       y = "New Cases", size = 20) +
+  theme_bw() +
+  scale_y_continuous(labels = scales::comma)+
+ theme(text = element_text(size = 20, face = "bold", color = "black"),
+        plot.title = element_text(size = 22))
+```
+# Description of scatter plot
+
+Total_vaccinations_per_hundred variable, which represents the cumulative number of COVID-19 vaccination doses administered per 100 people in the population. This variable can exceed 100 if people are receiving more than one dose of the vaccine, or if the population is less than 100 people.
+
+```{r, model, echo=FALSE}
+covid_clean <- covid %>%
+  select(location, date, total_cases, new_cases, total_vaccinations_per_hundred, population_density) %>%
+  drop_na()
+
+model <- lm(new_cases ~ total_vaccinations_per_hundred + population_density, data = covid_clean)
+
+
+# Create table of regression summary using kableExtra
+kbl(summary(model)$coef, digits = 4, caption = "Regression Summary") %>%
+  kable_classic() %>%
+  kable_styling()
+```
+# Analysis
+
+The summary output indicates that both total vaccinations per hundred and population density are significantly associated with new COVID-19 cases (p < 0.001 for both variables).
+
+
+```{r, plot2, echo=FALSE, fig.cap= 'Scatterplot with a regression line showing the relationship between total vaccinations per hundred and new cases', fig.height=6, out.width="80%"}
+
+
+# Create lagged vaccination variable
+covid_clean$vax_lagged <- dplyr::lag(covid_clean$total_vaccinations_per_hundred, 2)
+
+# Create linear mixed effects model with random intercepts for each country
+model2 <- lmer(new_cases ~ total_vaccinations_per_hundred + vax_lagged + population_density + (1 | location), data = covid_clean)
+
+# Summarize model results
+summary(model2)
+
+# Plot relationship between lagged vaccinations and new cases with country-specific slopes
+ggplot(covid_clean, aes(x = vax_lagged, y = new_cases, color = location)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, aes(group = location)) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "COVID-19 Vaccinations and New Cases", title.size = 2,
+       x = "Total Vaccinations per Hundred",
+       y = "New Cases",
+       color = "Country", size=20) +
+  theme(legend.position = "none",text = element_text(size = 20, face = "bold", color = "black"),
+        plot.title = element_text(size = 20))
+```
+# Findings
+
+The results of the linear regression analysis show that both total vaccinations per hundred and population density are significantly associated with new COVID-19 cases. Specifically, for every one-unit increase in total vaccinations per hundred, new COVID-19 cases increase by 93.148 (p < 0.001), while for every one-unit increase in population density, new COVID-19 cases decrease by approximately 5 cases(p < 0.001). The constant term is also significant, indicating that there are other factors that contribute to new COVID-19 cases beyond vaccinations and population density.
+
+The scatterplot with a regression line shows a negative relationship between total vaccinations per hundred and new cases, indicating that higher vaccination rates are associated with lower new cases. However, the relationship is not perfectly linear, and there is still considerable variability in new cases at different levels of vaccination rates.
